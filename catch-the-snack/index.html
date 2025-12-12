@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Catch the Snacks</title>
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body
+    class="bg-gradient-to-b from-red-500 to-red-900 min-h-screen flex flex-col items-center overflow-hidden"
+  >
+    <!-- ROTATION WARNING -->
+    <div
+      id="rotateWarning"
+      class="hidden fixed inset-0 bg-black/70 text-white flex flex-col items-center justify-center z-[9999] text-center p-6"
+    >
+      <p class="text-3xl font-bold mb-4">🔄 Rotate Your Device</p>
+      <p class="text-lg opacity-90">
+        Game hanya bisa dimainkan dalam mode portrait.
+      </p>
+    </div>
+
+    <!-- MAIN GAME CARD -->
+    <div class="w-full max-w-5xl mt-4 px-4">
+      <div
+        class="bg-white/90 backdrop-blur-xl rounded-3xl shadow-[0_8px_30px_rgba(0,0,0,0.1)] border border-white/40 px-5 py-6 flex flex-col gap-4"
+      >
+        <!-- HEADER -->
+        <header class="flex justify-between items-center safe-top pb-2">
+          <!-- LOGO + TITLE -->
+          <div class="flex items-center gap-3">
+            <img
+              src="assets/logo-catch-the-snacks.png"
+              class="h-10 md:h-14 drop-shadow-md"
+            />
+            <div class="flex flex-col">
+              <h1
+                class="text-lg md:text-2xl font-extrabold drop-shadow tracking-wide text-red-500"
+              >
+                Catch the Snacks
+              </h1>
+              <p class="text-xs md:text-sm text-gray-500">
+                by
+                <a
+                  href="https://github.com/inputicip"
+                  class="text-yellow-300 font-semibold hover:text-white"
+                  >inputicip</a
+                >
+              </p>
+            </div>
+          </div>
+
+          <!-- BUTTON GROUP -->
+          <div class="flex items-center gap-2">
+            <button
+              id="infoBtn"
+              class="text-white bg-black/30 hover:bg-black/50 shadow px-3 py-1 rounded-lg text-lg transition"
+            >
+              ℹ️
+            </button>
+
+            <button
+              id="leaderboardBtn"
+              class="text-white bg-black/30 hover:bg-black/50 shadow px-3 py-1 rounded-lg text-lg transition"
+            >
+              🏆
+            </button>
+          </div>
+        </header>
+
+        <!-- HUD BAR -->
+        <div
+          id="hudBar"
+          class="flex justify-between text-lg font-semibold px-1 transition-opacity duration-700 text-red-500"
+        >
+          <div>Score: <span id="score">0</span></div>
+          <div>Time: <span id="time">60</span>s</div>
+        </div>
+
+        <!-- GAME AREA -->
+        <div class="flex flex-col md:flex-row md:gap-6 w-full">
+          <!-- CANVAS WRAPPER -->
+          <div
+            class="relative flex justify-center items-center w-full rounded-2xl overflow-hidden border-2 border-white/30 shadow-xl"
+          >
+            <canvas id="gameCanvas"></canvas>
+
+            <!-- Start Logo -->
+            <img
+              id="gameLogo"
+              src="assets/logo-catch-the-snacks.png"
+              class="absolute top-10 w-32 drop-shadow-2xl pointer-events-none"
+            />
+
+            <!-- Start Button -->
+            <button
+              id="startBtn"
+              class="absolute mt-24 px-8 py-3 rounded-full bg-yellow-400 text-black text-lg font-bold shadow-lg hover:bg-yellow-300 transition"
+            >
+              Start Game
+            </button>
+
+            <!-- Restart Overlay Button -->
+            <button
+              id="restartOverlayBtn"
+              class="hidden absolute px-6 py-2 bg-white text-red-600 font-bold rounded-full shadow-lg border border-red-300 hover:bg-red-50 transition"
+              style="top: 60%; left: 50%; transform: translate(-50%, -50%)"
+            >
+              Restart
+            </button>
+          </div>
+
+          <!-- DESKTOP SIDEBAR -->
+          <div class="hidden md:flex flex-col gap-4 w-64">
+            <button
+              id="restartBtn"
+              class="px-6 py-2 rounded-full bg-gray-500 hover:bg-gray-600 text-white text-lg shadow"
+            >
+              Restart
+            </button>
+
+            <div
+              class="bg-white/80 backdrop-blur-xl rounded-2xl shadow p-4 border border-pink-200"
+            >
+              <h3 class="font-bold text-red-600 text-lg mb-2">
+                🏆 Leaderboard
+              </h3>
+              <ul
+                id="leaderboardList"
+                class="text-gray-700 space-y-1 text-sm"
+              ></ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- INFO MODAL -->
+    <div
+      id="infoModal"
+      class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden z-[9999] flex justify-center items-center p-4"
+    >
+      <div
+        class="bg-white rounded-2xl p-6 w-full max-w-sm text-center shadow-xl animate-[fadeIn_0.25s_ease]"
+      >
+        <h2 class="text-xl font-bold text-red-600 mb-2">Cara Bermain</h2>
+        <p class="text-gray-700 text-sm leading-relaxed">
+          Geser layar atau gunakan tombol ◀ ▶ untuk menggerakkan Quby.<br /><br />
+          🍤 Snack = +1<br />
+          🥣 Dimsum = +1<br />
+          🗑 Sampah = −2
+        </p>
+        <button
+          id="closeInfo"
+          class="mt-4 px-6 py-2 bg-red-500 text-white rounded-full hover:bg-red-600 transition font-semibold shadow"
+        >
+          Tutup
+        </button>
+      </div>
+    </div>
+
+    <!-- LEADERBOARD MODAL -->
+    <div
+      id="leaderboardModal"
+      class="fixed inset-0 bg-black/40 backdrop-blur-sm hidden z-[9999] flex justify-center items-center p-4"
+    >
+      <div
+        class="bg-white p-6 rounded-2xl w-full max-w-sm shadow-xl animate-[fadeIn_0.25s_ease] text-center"
+      >
+        <h2 class="text-xl font-bold text-red-600 mb-4">🏆 Top Players</h2>
+        <ul
+          id="leaderboardListMobile"
+          class="text-gray-700 space-y-1 text-sm max-h-48 overflow-y-auto"
+        ></ul>
+        <button
+          id="closeLeaderboard"
+          class="mt-4 px-6 py-2 bg-red-500 text-white rounded-full font-semibold hover:bg-red-600 transition"
+        >
+          Tutup
+        </button>
+      </div>
+    </div>
+
+    <!-- NAME INPUT MODAL -->
+    <div
+      id="nameModal"
+      class="fixed inset-0 bg-black/50 backdrop-blur-sm hidden z-[9999] flex justify-center items-center p-4"
+    >
+      <div
+        class="bg-white p-6 rounded-2xl w-full max-w-xs text-center shadow-xl animate-[fadeScale_0.25s_ease]"
+      >
+        <h2 class="text-xl font-semibold mb-3 text-red-600">Game Selesai!</h2>
+        <p class="text-gray-700 text-sm">Masukkan nama untuk leaderboard</p>
+
+        <input
+          id="playerNameInput"
+          class="mt-4 w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-red-400 outline-none"
+          placeholder="Nama kamu..."
+        />
+
+        <button
+          id="saveNameBtn"
+          class="mt-4 w-full px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-full font-semibold transition"
+        >
+          Simpan Skor
+        </button>
+      </div>
+    </div>
+
+    <!-- JS -->
+    <script src="js/game.js"></script>
+    <script src="js/ui-features.js"></script>
+    <script src="js/leaderboard.js"></script>
+
+    <script>
+      infoBtn.onclick = () => infoModal.classList.remove("hidden");
+      closeInfo.onclick = () => infoModal.classList.add("hidden");
+
+      leaderboardBtn.onclick = () =>
+        leaderboardModal.classList.remove("hidden");
+      closeLeaderboard.onclick = () => leaderboardModal.classList.add("hidden");
+    </script>
+  </body>
+</html>
