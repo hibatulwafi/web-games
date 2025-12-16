@@ -1,5 +1,5 @@
 /* ============================================================
-   CATCH THE SNACKS — GAME.JS (FULL REFACTOR)
+   CATCH THE SNACKS — GAME.JS (FINAL FULL REFACTOR)
    ============================================================ */
 
 /* ================================
@@ -9,15 +9,23 @@
 const CONFIG = {
   BASE_WIDTH: 480,
   BASE_HEIGHT: 720,
-
-  GAME_TIME: 10,
-
+  GAME_TIME: 60,
   SPAWN_START: 900,
   SPAWN_MIN: 450,
-
   FALL_SPEED_MIN: 2,
   FALL_SPEED_MAX: 4,
 };
+
+const FEVER = {
+  COMBO_TRIGGER: 5,
+  DURATION: 5,
+  SCORE_MULTIPLIER: 2,
+  SPAWN_MULTIPLIER: 0.55,
+};
+
+/* ================================
+   ASSETS
+================================ */
 
 const ASSETS = {
   background: "assets/background.jpg",
@@ -65,7 +73,6 @@ const gameLogo = document.getElementById("gameLogo");
 const STATE = {
   IDLE: "idle",
   RUNNING: "running",
-  ENDING: "ending",
   OVER: "over",
 };
 
@@ -76,16 +83,21 @@ let sounds = {};
 
 let score = 0;
 let timeLeft = CONFIG.GAME_TIME;
+let countdownValue = null;
 
 let items = [];
 let particles = [];
-
 let lastSpawn = 0;
 let lastFrame = 0;
 
-let bgm = null;
-let isMusicEnabled = true;
-let countdownValue = null;
+/* ================================
+   FEVER STATE
+================================ */
+
+let feverActive = false;
+let feverTimeLeft = 0;
+let comboCount = 0;
+let feverPulseTime = 0;
 
 /* ================================
    PLAYER
@@ -98,6 +110,41 @@ const player = {
   height: 160,
   targetX: null,
 };
+
+/* ================================
+   AUDIO
+================================ */
+
+let bgm = null;
+
+function loadSounds() {
+  sounds.good = new Audio(SOUNDS.good);
+  sounds.bad = new Audio(SOUNDS.bad);
+  sounds.gameOver = new Audio(SOUNDS.gameOver);
+}
+
+function playSound(type) {
+  const sfx = sounds[type];
+  if (!sfx) return;
+  const a = sfx.cloneNode();
+  a.volume = type === "gameOver" ? 0.7 : 0.9;
+  a.play().catch(() => {});
+}
+
+function initBGM() {
+  if (bgm) return;
+  bgm = new Audio(MUSIC.bgm);
+  bgm.loop = true;
+  bgm.volume = 0.4;
+}
+
+function playBGM() {
+  if (bgm) bgm.play().catch(() => {});
+}
+
+function pauseBGM() {
+  if (bgm) bgm.pause();
+}
 
 /* ================================
    ASSET LOADING
@@ -118,34 +165,13 @@ function loadImages() {
   );
 }
 
-function loadSounds() {
-  sounds.good = new Audio(SOUNDS.good);
-  sounds.bad = new Audio(SOUNDS.bad);
-  sounds.gameOver = new Audio(SOUNDS.gameOver);
-}
-
-function playSound(type) {
-  const sfx = sounds[type];
-  if (!sfx) return;
-
-  const audio = sfx.cloneNode();
-  audio.volume = type === "gameOver" ? 0.7 : 0.9;
-  audio.play().catch(() => {});
-}
-
 /* ================================
-   CANVAS SCALE (HP-FIRST)
+   CANVAS SCALE (MOBILE)
 ================================ */
 
 function resizeCanvas() {
-  const vw = window.visualViewport
-    ? window.visualViewport.width
-    : window.innerWidth;
-
-  const vh = window.visualViewport
-    ? window.visualViewport.height
-    : window.innerHeight;
-
+  const vw = window.visualViewport?.width || window.innerWidth;
+  const vh = window.visualViewport?.height || window.innerHeight;
   const scale = Math.min(vw / CONFIG.BASE_WIDTH, vh / CONFIG.BASE_HEIGHT);
 
   canvas.style.width = CONFIG.BASE_WIDTH * scale + "px";
@@ -155,17 +181,107 @@ function resizeCanvas() {
 window.addEventListener("resize", resizeCanvas);
 
 /* ================================
+   PARTICLES
+================================ */
+
+function spawnParticles(x, y, type) {
+  for (let i = 0; i < 10; i++) {
+    particles.push({
+      x,
+      y,
+      vx: (Math.random() - 0.5) * 1.6,
+      vy: -Math.random() * 2 - 1,
+      radius: 4 + Math.random() * 3,
+      life: 1,
+      type,
+    });
+  }
+
+  particles.push({
+    x,
+    y,
+    vx: 0,
+    vy: -1.5,
+    radius: 0,
+    life: 1.2,
+    type: type === "good" ? "textGood" : "textBad",
+  });
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.life -= dt;
+    if (p.life <= 0) {
+      particles.splice(i, 1);
+      continue;
+    }
+    p.x += p.vx * 60 * dt;
+    p.y += p.vy * 60 * dt;
+  }
+}
+
+function drawParticles() {
+  particles.forEach((p) => {
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, p.life);
+
+    // ===============================
+    // TEXT PARTICLE (+ SCORE)
+    // ===============================
+    if (p.type === "textGood" || p.type === "textBad") {
+      let text = "+1";
+      let color = "#4caf50";
+
+      if (p.type === "textBad") {
+        text = "-2";
+        color = "#ff3b3b";
+      }
+
+      // 🔥 FEVER BONUS
+      if (p.type === "textGood" && feverActive) {
+        text = "+2";
+        color = "#ffeb3b";
+        ctx.shadowColor = "#ff9800";
+        ctx.shadowBlur = 10;
+      }
+
+      ctx.fillStyle = color;
+      ctx.font = "bold 20px system-ui";
+      ctx.textAlign = "center";
+      ctx.fillText(text, p.x, p.y);
+    }
+
+    // ===============================
+    // DOT PARTICLE (VISUAL ONLY)
+    // ===============================
+    else {
+      ctx.fillStyle = p.type === "good" ? "#ffe082" : "#ff8a80";
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.restore();
+  });
+}
+
+/* ================================
    GAME FLOW
 ================================ */
 
 function resetGame() {
   score = 0;
   timeLeft = CONFIG.GAME_TIME;
-
-  items.length = 0;
-  particles.length = 0;
-
+  items = [];
+  particles = [];
   lastSpawn = 0;
+
+  feverActive = false;
+  feverTimeLeft = 0;
+  comboCount = 0;
+  feverPulseTime = 0;
+
   player.x = CONFIG.BASE_WIDTH / 2;
 
   scoreEl.textContent = score;
@@ -181,6 +297,7 @@ function startGame() {
   gameLogo.style.display = "none";
 
   if (window.hideNameModal) hideNameModal();
+
   initBGM();
   playBGM();
 }
@@ -188,22 +305,38 @@ function startGame() {
 function endGame() {
   state = STATE.OVER;
   window.lastScore = score;
+
   playSound("gameOver");
+  pauseBGM();
 
   restartOverlayBtn.classList.remove("hidden");
   gameLogo.style.display = "block";
 
   if (window.showNameModal) showNameModal();
-  pauseBGM();
 }
 
 /* ================================
-   SPAWN & PARTICLES
+   FEVER CONTROL
+================================ */
+
+function startFever() {
+  feverActive = true;
+  feverTimeLeft = FEVER.DURATION;
+  comboCount = 0;
+}
+
+function stopFever() {
+  feverActive = false;
+  feverTimeLeft = 0;
+}
+
+/* ================================
+   SPAWN
 ================================ */
 
 function spawnItem() {
-  const roll = Math.random();
-  const type = roll < 0.4 ? "dimsum" : roll < 0.8 ? "cilok" : "trash";
+  const r = Math.random();
+  const type = r < 0.4 ? "dimsum" : r < 0.8 ? "cilok" : "trash";
 
   items.push({
     type,
@@ -228,14 +361,8 @@ function update(delta) {
   const dt = delta / 1000;
   timeLeft -= dt;
 
-  // ⏱ COUNTDOWN ZONE
-  if (timeLeft <= 3 && timeLeft > 0) {
-    countdownValue = Math.ceil(timeLeft);
-  } else {
-    countdownValue = null;
-  }
+  countdownValue = timeLeft > 0 && timeLeft <= 3 ? Math.ceil(timeLeft) : null;
 
-  // ⏹ GAME OVER
   if (timeLeft <= 0) {
     timeLeft = 0;
     endGame();
@@ -244,11 +371,19 @@ function update(delta) {
 
   timeEl.textContent = Math.ceil(timeLeft);
 
+  if (feverActive) {
+    feverTimeLeft -= dt;
+    feverPulseTime += dt;
+    if (feverTimeLeft <= 0) stopFever();
+  }
+
   lastSpawn += delta;
 
-  const spawnInterval =
+  let spawnInterval =
     CONFIG.SPAWN_START -
     (1 - timeLeft / CONFIG.GAME_TIME) * (CONFIG.SPAWN_START - CONFIG.SPAWN_MIN);
+
+  if (feverActive) spawnInterval *= FEVER.SPAWN_MULTIPLIER;
 
   if (lastSpawn >= spawnInterval) {
     spawnItem();
@@ -276,18 +411,28 @@ function update(delta) {
     if (hit) {
       if (it.type === "trash") {
         score -= 2;
+        comboCount = 0;
+        spawnParticles(it.x, it.y, "bad");
         playSound("bad");
       } else {
-        score += 1;
+        comboCount++;
+        score += feverActive ? FEVER.SCORE_MULTIPLIER : 1;
+        spawnParticles(it.x, it.y, "good");
         playSound("good");
+
+        if (comboCount >= FEVER.COMBO_TRIGGER && !feverActive) {
+          startFever();
+        }
       }
 
       scoreEl.textContent = score;
       items.splice(i, 1);
-    } else if (it.y > CONFIG.BASE_HEIGHT + 100) {
+    } else if (it.y > CONFIG.BASE_HEIGHT + 120) {
       items.splice(i, 1);
     }
   }
+
+  updateParticles(dt);
 }
 
 /* ================================
@@ -296,6 +441,11 @@ function update(delta) {
 
 function draw() {
   ctx.drawImage(images.background, 0, 0, CONFIG.BASE_WIDTH, CONFIG.BASE_HEIGHT);
+
+  if (feverActive) {
+    ctx.fillStyle = "rgba(255,193,7,0.12)";
+    ctx.fillRect(0, 0, CONFIG.BASE_WIDTH, CONFIG.BASE_HEIGHT);
+  }
 
   items.forEach((it) => {
     ctx.save();
@@ -318,23 +468,44 @@ function draw() {
     player.width,
     player.height
   );
+
+  drawParticles();
+  drawFeverText();
+  drawCountdown();
+}
+
+function drawFeverText() {
+  if (!feverActive) return;
+
+  const pulse = 1 + Math.sin(feverPulseTime * 6) * 0.12;
+  const alpha = 0.7 + Math.sin(feverPulseTime * 6) * 0.3;
+
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = "#ffeb3b";
+  ctx.shadowColor = "#ff9800";
+  ctx.shadowBlur = 15;
+  ctx.font = `bold ${28 * pulse}px system-ui`;
+  ctx.textAlign = "center";
+  ctx.fillText(
+    `🔥 FEVER x${FEVER.SCORE_MULTIPLIER}`,
+    CONFIG.BASE_WIDTH / 2,
+    70
+  );
+  ctx.restore();
 }
 
 function drawCountdown() {
   if (countdownValue === null) return;
 
   ctx.save();
-
-  ctx.fillStyle = "rgba(0,0,0,0.1)";
+  ctx.fillStyle = "rgba(0,0,0,0.15)";
   ctx.fillRect(0, 0, CONFIG.BASE_WIDTH, CONFIG.BASE_HEIGHT);
-
   ctx.fillStyle = "#fff";
   ctx.font = "bold 96px system-ui";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-
   ctx.fillText(countdownValue, CONFIG.BASE_WIDTH / 2, CONFIG.BASE_HEIGHT / 2);
-
   ctx.restore();
 }
 
@@ -349,7 +520,6 @@ function loop(t) {
 
   update(delta);
   draw();
-  drawCountdown();
 
   requestAnimationFrame(loop);
 }
@@ -390,25 +560,3 @@ loadImages().then(() => {
   resizeCanvas();
   requestAnimationFrame(loop);
 });
-
-/* =================================
-  BGM CONTROL
-================================= */
-function initBGM() {
-  if (bgm) return;
-
-  bgm = new Audio(MUSIC.bgm);
-  bgm.loop = true;
-  bgm.volume = 0.4;
-}
-
-function playBGM() {
-  if (!isMusicEnabled || !bgm) return;
-
-  bgm.play().catch(() => {});
-}
-
-function pauseBGM() {
-  if (!bgm) return;
-  bgm.pause();
-}

@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Leaderboard — Catch the Snacks</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <!-- Tailwind -->
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gradient-to-b from-red-500 to-red-900 min-h-screen flex justify-center items-center p-4">
+
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6">
+        <h1 class="text-2xl font-extrabold text-red-600 text-center mb-4">
+            🏆 Hiro Leaderboard
+        </h1>
+
+        <ul id="realtimeLeaderboard" class="space-y-2 text-gray-700 text-sm">
+            <li class="text-center text-gray-400">Loading...</li>
+        </ul>
+
+        <a href="index.html" class="mt-6 block text-center text-red-500 font-semibold hover:underline">
+            ← Back to Game
+        </a>
+    </div>
+
+    <!-- Firebase (COMPAT SDK) -->
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+    <script>
+        const firebaseConfig = {
+            apiKey: "AIzaSyDd6zyLON0mL5L2SvgNj54avXWhmbVdf34",
+            authDomain: "input-icip.firebaseapp.com",
+            projectId: "input-icip",
+            storageBucket: "input-icip.appspot.com",
+            messagingSenderId: "842495304876",
+            appId: "1:842495304876:web:32305997c05af19ff96b09"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+    </script>
+
+    <script src="js/realtime-leaderboard.js"></script>
+</body>
+
+</html>
