@@ -1,5 +1,5 @@
 /* ============================================================
-   UI FEATURES - CLEAN REFACTORED VERSION
+   UI FEATURES - FINAL STABLE VERSION (HP-FIRST)
    ============================================================ */
 
 /* ---------- DOM CACHE ---------- */
@@ -12,79 +12,101 @@ const drawer = document.getElementById("mobileDrawer");
    AUTO-HIDE HUD (fade-out setelah 2 detik)
    ============================================================ */
 window.autoHideHUD = function () {
-    hudBar.classList.add("opacity-100");
+  if (!hudBar) return;
 
-    setTimeout(() => {
-        hudBar.classList.add("transition-opacity", "duration-700");
-        hudBar.classList.remove("opacity-100");
-        hudBar.classList.add("opacity-0");
-    }, 2000);
+  hudBar.classList.remove("opacity-0");
+  hudBar.classList.add("opacity-100");
+
+  setTimeout(() => {
+    hudBar.classList.add("transition-opacity", "duration-700");
+    hudBar.classList.remove("opacity-100");
+    hudBar.classList.add("opacity-0");
+  }, 2000);
 };
 
 /* ============================================================
-   FULLSCREEN MODE (tap canvas to enter fullscreen)
+   FULLSCREEN MODE (HP-FIRST)
    ============================================================ */
 window.enableFullscreen = function () {
-    const requestFS =
-        document.documentElement.requestFullscreen ||
-        document.documentElement.webkitRequestFullscreen ||
-        null;
+  if (!canvas) return;
 
-    if (!requestFS) return; // Browser tidak support fullscreen
+  const requestFS =
+    document.documentElement.requestFullscreen ||
+    document.documentElement.webkitRequestFullscreen ||
+    null;
 
-    canvas.addEventListener("click", () => {
-        requestFS.call(document.documentElement).catch(() => { });
-    });
+  if (!requestFS) return;
+
+  canvas.addEventListener("click", () => {
+    requestFS.call(document.documentElement).catch(() => {});
+  });
 };
 
+/* Sinkron resize setelah fullscreen */
+document.addEventListener("fullscreenchange", () => {
+  window.dispatchEvent(new Event("resize"));
+});
+
 /* ============================================================
-   ORIENTATION LOCK (portrait required)
+   ORIENTATION LOCK (portrait only)
    ============================================================ */
 function checkOrientation() {
-    const isLandscape = window.innerWidth > window.innerHeight;
+  if (!rotateWarning) return;
 
-    if (isLandscape) {
-        rotateWarning.classList.remove("hidden", "opacity-0");
-        rotateWarning.classList.add("flex");
-    } else {
-        rotateWarning.classList.add("opacity-0");
-        setTimeout(() => rotateWarning.classList.add("hidden"), 300);
-    }
+  const vw = window.visualViewport
+    ? window.visualViewport.width
+    : window.innerWidth;
+
+  const vh = window.visualViewport
+    ? window.visualViewport.height
+    : window.innerHeight;
+
+  const isLandscape = vw > vh;
+
+  if (isLandscape) {
+    rotateWarning.classList.remove("hidden", "opacity-0");
+    rotateWarning.classList.add("flex");
+  } else {
+    rotateWarning.classList.add("opacity-0");
+    setTimeout(() => rotateWarning.classList.add("hidden"), 300);
+  }
 }
 
 window.addEventListener("resize", checkOrientation);
 window.addEventListener("orientationchange", checkOrientation);
-checkOrientation();
 
 /* ============================================================
-   MOBILE DRAWER DRAG / SWIPE (smooth)
+   MOBILE DRAWER DRAG / SWIPE
    ============================================================ */
-let touchStartY = null;
-const SWIPE_THRESHOLD = 35; // lebih smooth, tidak terlalu sensitif
+if (drawer) {
+  let touchStartY = null;
+  const SWIPE_THRESHOLD = 35;
 
-drawer.addEventListener("touchstart", (e) => {
+  drawer.addEventListener("touchstart", (e) => {
     touchStartY = e.touches[0].clientY;
-});
+  });
 
-drawer.addEventListener("touchmove", (e) => {
+  drawer.addEventListener("touchmove", (e) => {
     if (touchStartY === null) return;
 
     const deltaY = touchStartY - e.touches[0].clientY;
 
     if (deltaY > SWIPE_THRESHOLD) {
-        drawer.classList.add("drawer-open");
+      drawer.classList.add("drawer-open");
     } else if (deltaY < -SWIPE_THRESHOLD) {
-        drawer.classList.remove("drawer-open");
+      drawer.classList.remove("drawer-open");
     }
-});
+  });
 
-drawer.addEventListener("touchend", () => {
+  drawer.addEventListener("touchend", () => {
     touchStartY = null;
-});
+  });
+}
 
 /* ============================================================
    INIT
    ============================================================ */
 document.addEventListener("DOMContentLoaded", () => {
-    enableFullscreen();
+  checkOrientation();
+  enableFullscreen();
 });

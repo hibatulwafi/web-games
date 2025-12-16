@@ -1,8 +1,8 @@
 /* ============================================================
-   LEADERBOARD & NAME MODAL HANDLER (FINAL REFACTORED)
+   LEADERBOARD (FIREBASE ONLINE VERSION)
    ============================================================ */
 
-/* ---------- DOM CACHE ---------- */
+/* ---------- DOM ---------- */
 const nameModal = document.getElementById("nameModal");
 const playerNameInput = document.getElementById("playerNameInput");
 const saveNameBtn = document.getElementById("saveNameBtn");
@@ -10,74 +10,114 @@ const saveNameBtn = document.getElementById("saveNameBtn");
 const listDesktop = document.getElementById("leaderboardList");
 const listMobile = document.getElementById("leaderboardListMobile");
 
+/* ---------- FIRESTORE ---------- */
+const leaderboardRef = window.db.collection("leaderboard");
+
 /* ============================================================
    MODAL CONTROL
    ============================================================ */
 
 window.showNameModal = function () {
-    nameModal.classList.remove("hidden");
-    playerNameInput.value = "";
-    setTimeout(() => playerNameInput.focus(), 150);
+  nameModal.classList.remove("hidden");
+  playerNameInput.value = "";
+  setSaveButtonLoading(false); // ⬅️ reset state
+  setTimeout(() => playerNameInput.focus(), 150);
 };
 
 window.hideNameModal = function () {
-    nameModal.classList.add("hidden");
+  nameModal.classList.add("hidden");
 };
 
 /* ============================================================
-   LOAD LEADERBOARD
+   LOAD LEADERBOARD (TOP 10)
    ============================================================ */
 
-window.loadLeaderboard = function () {
-    const data = JSON.parse(localStorage.getItem("leaderboard") || "[]");
+window.loadLeaderboard = async function () {
+  try {
+    const snapshot = await leaderboardRef
+      .orderBy("score", "desc")
+      .limit(10)
+      .get();
 
-    const render = (el) => {
-        if (!el) return;
-
-        el.innerHTML =
-            data.length === 0
-                ? `<li class="text-gray-400 text-sm">Belum ada skor</li>`
-                : data
-                    .slice(0, 10)
-                    .map(
-                        (e, i) =>
-                            `<li class="flex justify-between bg-white rounded px-3 py-1 text-sm shadow">
-                                 <span>${i + 1}. <b>${e.name}</b></span>
-                                 <span>${e.score}</span>
-                               </li>`
-                    )
-                    .join("");
-    };
-
-    render(listDesktop);
-    render(listMobile);
+    const data = snapshot.docs.map((doc) => doc.data());
+    renderLeaderboard(data);
+  } catch (err) {
+    console.error("Load leaderboard failed:", err);
+  }
 };
 
-/* Load once on boot */
+function renderLeaderboard(data) {
+  const render = (el) => {
+    if (!el) return;
+
+    el.innerHTML =
+      data.length === 0
+        ? `<li class="text-gray-400 text-sm">Belum ada skor</li>`
+        : data
+            .map(
+              (e, i) => `
+                <li class="flex justify-between bg-white rounded px-3 py-1 text-sm shadow">
+                  <span>${i + 1}. <b>${e.name}</b></span>
+                  <span>${e.score}</span>
+                </li>
+              `
+            )
+            .join("");
+  };
+
+  render(listDesktop);
+  render(listMobile);
+}
+
+/* Load leaderboard saat page siap */
 document.addEventListener("DOMContentLoaded", loadLeaderboard);
 
 /* ============================================================
    SAVE SCORE
    ============================================================ */
 
-window.saveScore = function (name, score) {
-    const data = JSON.parse(localStorage.getItem("leaderboard") || "[]");
+window.saveScore = async function (name, score) {
+  await leaderboardRef.add({
+    name,
+    score,
+    createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+  });
 
-    data.push({ name, score });
-    data.sort((a, b) => b.score - a.score);
-
-    localStorage.setItem("leaderboard", JSON.stringify(data));
-    loadLeaderboard();
+  await loadLeaderboard();
 };
 
 /* ============================================================
    SAVE BUTTON (MODAL)
    ============================================================ */
 
-saveNameBtn.addEventListener("click", () => {
-    let name = playerNameInput.value.trim();
-    if (name === "") name = "Guest";
+saveNameBtn.addEventListener("click", async () => {
+  if (saveNameBtn.disabled) return; // 🛑 extra safety
 
-    window.saveScore(name, window.lastScore);
+  let name = playerNameInput.value.trim();
+  if (!name) name = "Guest";
+
+  try {
+    setSaveButtonLoading(true); // 🔒 lock button
+
+    await window.saveScore(name, window.lastScore);
+
     hideNameModal();
+  } catch (err) {
+    console.error("Save score failed:", err);
+    alert("Gagal menyimpan skor. Coba lagi.");
+  } finally {
+    setSaveButtonLoading(false); // 🔓 unlock
+  }
 });
+
+function setSaveButtonLoading(isLoading) {
+  saveNameBtn.disabled = isLoading;
+
+  if (isLoading) {
+    saveNameBtn.textContent = "Menyimpan...";
+    saveNameBtn.classList.add("opacity-60", "cursor-not-allowed");
+  } else {
+    saveNameBtn.textContent = "Simpan Skor";
+    saveNameBtn.classList.remove("opacity-60", "cursor-not-allowed");
+  }
+}
